@@ -27,6 +27,21 @@ import { ConnectButton } from 'connectsdk-reactnative';
 />
 ```
 
+## Running locally
+In order to see an example of the wrapper, you'll need the following dependencies:
+- yarn
+- npm
+- Cocoapods
+
+1. Clone the repository
+2. Run `yarn` to setup yarn dependencies
+3. Go to `example/ios` folder
+4. Run `pod install` to setup Cocoapods for the example project. 
+5. Go back to root of the repository.
+6. Run `yarn example ios` to run the iOS app.
+
+To see usage of the ConnectButton in Typescript, go to `example/src/App.tsx`.
+
 ## Contributing
 
 See the [contributing guide](CONTRIBUTING.md) to learn how to contribute to the repository and the development workflow.
