@@ -1,36 +1,181 @@
-@objc(ConnectsdkReactnativeViewManager)
-class ConnectsdkReactnativeViewManager: RCTViewManager {
+import Foundation
+import UIKit
+import IFTTTConnectSDK_ReactNative
 
-  override func view() -> (ConnectsdkReactnativeView) {
-    return ConnectsdkReactnativeView()
-  }
+class RCTConnectButtonCredentialProvider: ConnectionCredentialProvider {
+    var inviteCode: String?
+    var oauthCode: String
+    var userToken: String?
 
-  @objc override static func requiresMainQueueSetup() -> Bool {
-    return false
-  }
+    init(inviteCode: String? = nil, oauthCode: String, userToken: String? = nil) {
+        self.inviteCode = inviteCode
+        self.oauthCode = oauthCode
+        self.userToken = userToken
+    }
 }
 
-class ConnectsdkReactnativeView : UIView {
-
-  @objc var color: String = "" {
-    didSet {
-      self.backgroundColor = hexStringToUIColor(hexColor: color)
+class RCTConnectButtonWrapper: UIView {
+    private var connectButton: ConnectButton
+    
+    private var connectButtonController: ConnectButtonController?
+    private var credentialProvider: RCTConnectButtonCredentialProvider?
+    
+    private var connectionId: String?
+    private var suggestedUserEmail: String?
+    private var redirectURL: URL?
+    private var skipConnectionConfiguration: Bool?
+    
+    private var oauthCode: String = ""
+    private var inviteCode: String?
+    private var userToken: String?
+    
+    @objc var onActivationSuccess: RCTDirectEventBlock?
+    @objc var onActivationFailure: RCTDirectEventBlock?
+    @objc var onDeactivationSuccess: RCTDirectEventBlock?
+    @objc var onDeactivationFailure: RCTDirectEventBlock?
+    
+    private var baseProps: [Any?] {
+        return [connectionId, suggestedUserEmail, redirectURL, skipConnectionConfiguration]
     }
-  }
-
-  func hexStringToUIColor(hexColor: String) -> UIColor {
-    let stringScanner = Scanner(string: hexColor)
-
-    if(hexColor.hasPrefix("#")) {
-      stringScanner.scanLocation = 1
+    
+    init() {
+        self.connectButton = .init()
+        super.init(frame: .zero)
+        setupLayout()
     }
-    var color: UInt32 = 0
-    stringScanner.scanHexInt32(&color)
+    
+    private func setupLayout() {
+        addSubview(connectButton)
+        connectButton.translatesAutoresizingMaskIntoConstraints = false
+        
+        connectButton.topAnchor.constraint(equalTo: topAnchor).isActive = true
+        connectButton.bottomAnchor.constraint(equalTo: bottomAnchor).isActive = true
+        connectButton.leadingAnchor.constraint(equalTo: leadingAnchor).isActive = true
+        connectButton.trailingAnchor.constraint(equalTo: trailingAnchor).isActive = true
+    }
+    
+    // TODO: Cleanup the setters below. We need to do this so we can initialize the ConnectButtonController with the values below.
+    @objc func setOauthCode(_ oauthCode: NSString) {
+        if oauthCode as String == self.oauthCode { return }
+        
+        self.oauthCode = oauthCode as String
+        initializeConnectButtonController()
+    }
+    
+    @objc func setInviteCode(_ inviteCode: NSString) {
+        if inviteCode as String == self.inviteCode { return }
+        
+        self.inviteCode = inviteCode as String
+        initializeConnectButtonController()
+    }
+    
+    @objc func setUserToken(_ userToken: NSString) {
+        if userToken as String == self.userToken { return }
+        
+        self.userToken = userToken as String
+        initializeConnectButtonController()
+    }
+    
+    @objc func setConnectionId(_ connectionId: NSString) {
+        if connectionId as String == self.connectionId { return }
+        
+        self.connectionId = connectionId as String
+        initializeConnectButtonController()
+    }
+    
+    @objc func setSuggestedUserEmail(_ suggestedUserEmail: NSString) {
+        if suggestedUserEmail as String == self.suggestedUserEmail { return }
+        
+        self.suggestedUserEmail = suggestedUserEmail as String
+        initializeConnectButtonController()
+    }
+    
+    @objc func setRedirectURL(_ redirectURL: NSString) {
+        // TODO: Add validation here
+        self.redirectURL = URL(string: redirectURL as String)
+        initializeConnectButtonController()
+    }
+    
+    @objc func setSkipConnectionConfiguration(_ skipConnectionConfiguration: Bool) {
+        self.skipConnectionConfiguration = skipConnectionConfiguration
+        initializeConnectButtonController()
+    }
 
-    let r = CGFloat(Int(color >> 16) & 0x000000FF)
-    let g = CGFloat(Int(color >> 8) & 0x000000FF)
-    let b = CGFloat(Int(color) & 0x000000FF)
+    private func initializeConnectButtonController() {
+        if baseProps.allSatisfy({ value in
+            return value != nil
+        }) {
+            self.credentialProvider = RCTConnectButtonCredentialProvider(inviteCode: inviteCode, oauthCode: oauthCode, userToken: userToken)
+            // TODO: Lots of unwrapping, how can this be made better
+            self.connectButtonController = .init(
+                connectButton: connectButton,
+                connectionConfiguration: .init(
+                    connectionId: connectionId!,
+                    suggestedUserEmail: suggestedUserEmail!,
+                    credentialProvider: RCTConnectButtonCredentialProvider(
+                        inviteCode: inviteCode,
+                        oauthCode: oauthCode,
+                        userToken: userToken),
+                    redirectURL: redirectURL!,
+                    skipConnectionConfiguration: skipConnectionConfiguration!
+                ),
+                delegate: self
+            )
+        }
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
 
-    return UIColor(red: r / 255.0, green: g / 255.0, blue: b / 255.0, alpha: 1)
-  }
+extension RCTConnectButtonWrapper: ConnectButtonControllerDelegate {
+    func presentingViewController(for connectButtonController: ConnectButtonController) -> UIViewController {
+        // TODO: This is prone to failure. Can we change it?
+        return (window?.rootViewController)!
+    }
+    
+    func connectButtonController(_ connectButtonController: ConnectButtonController,
+                                 didFinishActivationWithSuccess activation: ConnectionActivation) {
+        guard let onActivationSuccess = onActivationSuccess else { return }
+        let data = activation.toJSON() as [AnyHashable : Any]
+        onActivationSuccess(data)
+    }
+    
+    func connectButtonController(_ connectButtonController: ConnectButtonController,
+                                 didFinishActivationWithFailure error: NSError) {
+        guard let onActivationFailure = onActivationFailure else { return }
+        let data = error.toJSON() as [AnyHashable : Any]
+        onActivationFailure(data)
+    }
+    
+    func connectButtonController(_ connectButtonController: ConnectButtonController,
+                                 didFinishDeactivationWithSuccess connection: Connection) {
+        guard let onDeactivationSuccess = onDeactivationSuccess else { return }
+        let data = connection.toJSON() as [AnyHashable : Any]
+        onDeactivationSuccess(data)
+    }
+    
+    func connectButtonController(_ connectButtonController: ConnectButtonController,
+                                 didFinishDeactivationWithFailure error: NSError) {
+        guard let onDeactivationFailure = onDeactivationFailure else { return }
+        let data = error.toJSON() as [AnyHashable : Any]
+        onDeactivationFailure(data)
+    }
+    
+    func webAuthenticationPresentationAnchor() -> UIWindow {
+        // TODO: This feels clunky, can this be changed?
+        return window!
+    }
+}
+
+@objc (RCTConnectButtonViewManager)
+class RCTConnectButtonViewManager: RCTViewManager {
+    override static func requiresMainQueueSetup() -> Bool {
+        return true
+    }
+    
+    override func view() -> UIView! {
+        return RCTConnectButtonWrapper()
+    }
 }
