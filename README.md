@@ -12,13 +12,20 @@ npm install connectsdk-reactnative
 
 
 ```js
-import { ConnectsdkReactnativeView } from "connectsdk-reactnative";
+import { ConnectButton } from 'connectsdk-reactnative';
 
 // ...
-
-<ConnectsdkReactnativeView color="tomato" />
+<ConnectButton
+	connectionId={'<The Id of the connection that should be displayed. Example: >'}
+	suggestedUserEmail={'<An email address corresponding to the user that is logged in.>'}
+	redirectURL={'<The redirect URL to use when invoking your iOS app after a service is connected. Example: connectsdktestapp://connect_callback'}
+	skipConnectionConfiguration={false}	// Whether or not connection configuration should be skipped.
+	onActivationSuccess={onActivationSuccess} // Callback for Connection activation success
+	onActivationFailure={onActivationFailure} // Callback for Connection activation failure
+	onDeactivationSuccess={onDeactivationSuccess} // Callback for Connection deactivation success
+	onDeactivationFailure={onDeactivationFailure} // Callback for Connection deactivation failure
+/>
 ```
-
 
 ## Contributing
 
